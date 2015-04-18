@@ -60,6 +60,7 @@
 %%%_ * Types -----------------------------------------------------------
 %% Opaque authentication record
 -record(a, { client   = undefined    :: undefined | term()
+	   , user = undefined :: underfined | term()
            , resowner = undefined    :: undefined | term()
            , scope                   :: scope()
            , ttl      = 0            :: non_neg_integer()
@@ -193,7 +194,8 @@ authorize_code_request(User, Client, RedirUri, Scope, Ctx0) ->
                         {error, _}=E       -> E;
                         {ok, {Ctx3, Auth}} ->
                             {ok, { Ctx3
-                                 , Auth#a{ client=C
+                                 , Auth#a{ user=User
+					 , client=C
                                          , ttl   =oauth2_config:expiry_time(
                                                                     code_grant)
                                          } }}
@@ -206,9 +208,9 @@ authorize_code_request(User, Client, RedirUri, Scope, Ctx0) ->
 %%      - 4.1.2. Authorization Code Grant > Authorization Response, with the
 %%        result of authorize_code_request/6.
 -spec issue_code(auth(), appctx()) -> {ok, {appctx(), response()}}.
-issue_code(#a{client=Client, resowner=Owner, scope=Scope, ttl=TTL}, Ctx0) ->
+issue_code(#a{user=User, client=Client, resowner=Owner, scope=Scope, ttl=TTL}, Ctx0) ->
     GrantContext = build_context(Client, seconds_since_epoch(TTL), Owner, Scope),
-    AccessCode   = ?TOKEN:generate(GrantContext),
+    AccessCode   = ?TOKEN:generate(User, GrantContext),
     {ok, Ctx1}   = ?BACKEND:associate_access_code(AccessCode,GrantContext,Ctx0),
     {ok, {Ctx1, oauth2_response:new(<<>>,TTL,Owner,Scope,<<>>,<<>>,AccessCode)}}.
 
@@ -225,9 +227,9 @@ issue_code(#a{client=Client, resowner=Owner, scope=Scope, ttl=TTL}, Ctx0) ->
 %%      - 4.4.3. Client Credentials Grant > Access Token Response, with the
 %%        result of authorize_client_credentials/4.
 -spec issue_token(auth(), appctx()) -> {ok, {appctx(), response()}}.
-issue_token(#a{client=Client, resowner=Owner, scope=Scope, ttl=TTL}, Ctx0) ->
+issue_token(#a{user=User, client=Client, resowner=Owner, scope=Scope, ttl=TTL}, Ctx0) ->
     GrantContext = build_context(Client,seconds_since_epoch(TTL),Owner,Scope),
-    AccessToken  = ?TOKEN:generate(GrantContext),
+    AccessToken  = ?TOKEN:generate(User, GrantContext),
     {ok, Ctx1}   = ?BACKEND:associate_access_token( AccessToken
                                                   , GrantContext
                                                   , Ctx0 ),
@@ -246,13 +248,13 @@ issue_token_and_refresh(#a{client = undefined}, _Ctx)   ->
   {error, invalid_authorization};
 issue_token_and_refresh(#a{resowner = undefined}, _Ctx) ->
   {error, invalid_authorization};
-issue_token_and_refresh( #a{client=Client, resowner=Owner, scope=Scope, ttl=TTL}
+issue_token_and_refresh( #a{user=User, client=Client, resowner=Owner, scope=Scope, ttl=TTL}
                        , Ctx0 ) ->
     RTTL         = oauth2_config:expiry_time(refresh_token),
     RefreshCtx   = build_context(Client,seconds_since_epoch(RTTL),Owner,Scope),
-    RefreshToken = ?TOKEN:generate(RefreshCtx),
+    RefreshToken = ?TOKEN:generate(User, RefreshCtx),
     AccessCtx    = build_context(Client,seconds_since_epoch(TTL),Owner,Scope,RefreshToken),
-    AccessToken  = ?TOKEN:generate(AccessCtx),
+    AccessToken  = ?TOKEN:generate(User, AccessCtx),
     {ok, Ctx1}   = ?BACKEND:associate_access_token( AccessToken
                                                   , AccessCtx
                                                   , Ctx0),
