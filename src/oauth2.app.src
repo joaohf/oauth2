@@ -24,7 +24,8 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib
+                  stdlib,
+                  crypto
                  ]},
   {env, []},
   {pkg_name, "oauth2_erlang"},

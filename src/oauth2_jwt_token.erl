@@ -40,7 +40,7 @@ generate(User, Context) ->
 
 -spec create_header(oauth2:context()) -> binary().
 create_header(_Context) ->
-    base64url:encode(jiffy:encode({[{alg, <<"HS512">>},{typ, <<"JWT">>}]})).
+    base64url:encode(oauth2_jwt_json:encode([{alg, <<"HS512">>},{typ, <<"JWT">>}])).
 
 -spec create_payload(oauth2:user(), oauth2:context()) -> binary().
 create_payload(User, Context) ->
@@ -53,12 +53,12 @@ create_payload(User, Context) ->
 		 {ok, {_Ctx, Cls}} -> Cls;  
 		 {error, notfound} -> []
 	     end,
-    Doc = {[{exp, Expiry}, {iat, Issued}] ++ Claims},
-    Json = jiffy:encode(Doc),
+    Doc = [{exp, Expiry}, {iat, Issued}] ++ Claims,
+    Json = oauth2_jwt_json:encode(Doc),
     base64url:encode(Json).
 
 -spec create_token(oauth2:context(), binary(), binary()) -> binary().
 create_token(_Context, Header, Payload) ->
     Packet = <<Header/binary, ".", Payload/binary>>,
-    Signature = base64url:encode(hmac:hmac512("secret", Packet)),
+    Signature = base64url:encode(crypto:hmac(sha512,"secret", Packet)),
     <<Packet/binary, ".", Signature/binary>>.
